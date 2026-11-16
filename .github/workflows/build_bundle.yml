@@ -1,0 +1,46 @@
+name: Build Paket Winlator Bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  package-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install zstd
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Clone Winlator upstream with submodules
+        run: git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/brunodev85/winlator.git upstream_winlator
+
+      - name: Build single ZIP runtime bundle
+        run: python3 scripts/package_bundle.py upstream_winlator dist
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paket-winlator-bundle
+          path: |
+            dist/paket-winlator-bundle.zip
+            dist/paket-winlator-bundle.zip.sha256
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="bundle-r${{ github.run_number }}"
+          gh release create "$TAG" \
+            dist/paket-winlator-bundle.zip \
+            dist/paket-winlator-bundle.zip.sha256 \
+            --title "Paket Winlator Runtime Bundle ($TAG)" \
+            --notes "All-in-one Winlator runtime bundle built from brunodev85/winlator."
